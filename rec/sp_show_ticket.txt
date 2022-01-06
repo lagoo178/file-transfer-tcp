@@ -1,0 +1,40 @@
+DELIMITER $$
+
+USE `danamon`$$
+
+DROP PROCEDURE IF EXISTS `sp_show_ticket`$$
+
+CREATE DEFINER=`root`@`localhost` PROCEDURE `sp_show_ticket`(
+  IN terminal_type_filter VARCHAR(45),
+  IN manage_by_filter VARCHAR(45),
+  IN terminal_status_filter VARCHAR(4)
+)
+BEGIN
+	SELECT a.*,
+	SUBSTRING_INDEX( b.DEVICE_DESCRIPTION,'-',-1) AS branch,
+	TIME_TO_SEC(TIMEDIFF(a.so_updated_date,a.so_date)) / 3600 AS downtime,
+	c.name AS NAME,
+	d.is_vip,
+	d.ACTIVE AS status_atm_active,
+	d.SND,
+	d.STATUS_MESIN,
+	d.KEPEMILIKAN,
+	d.MERK_UPS,
+	e.id AS event_id,
+	e.error_type AS error_type,
+	e.category AS category_error
+	FROM inet_so_main a
+	LEFT OUTER JOIN inet_snowflakes.inet_dm_device b ON a.atm_id = b.DEVICE_ID
+	LEFT OUTER JOIN engineer c ON a.engineer = c.id
+	LEFT OUTER JOIN add_device_info d ON b.DEVICE_ID = d.Device_id
+	LEFT OUTER JOIN error_idle_time e ON e.event_no = a.event_no
+	WHERE
+	IF( b.DEVICE_ID != '',  b.DEVICE_ID , '-') NOT IN ('ATM00001','ATM00020','ATMAGENT40','EMVA0051')
+	AND IF(b.DTYP_ID != '', b.DTYP_ID , '-')  LIKE terminal_type_filter
+	AND IF(d.KEPEMILIKAN != '', d.KEPEMILIKAN , '-') COLLATE utf8mb4_general_ci LIKE manage_by_filter
+	AND IF(d.ACTIVE != '', CAST(d.ACTIVE AS CHAR) , '0') LIKE terminal_status_filter
+	ORDER BY a.so_status DESC;
+	
+	END$$
+
+DELIMITER ;
